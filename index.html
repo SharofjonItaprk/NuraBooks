@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NuraBooks Do'koni</title>
+    <!-- Telegram WebApp SDK -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+    <!-- CSS uslublari (Dizayn) -->
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: #f4f6f8;
+            color: #333;
+            padding-bottom: 20px;
+        }
+
+        header {
+            background: #2e7d32;
+            color: white;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+            gap: 15px;
+            padding: 15px;
+            margin-top: 10px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .card img {
+            width: 100%;
+            height: 220px;
+            object-fit: cover; /* Rasmni buzmasdan sig'dirish */
+        }
+
+        .card-body {
+            padding: 10px;
+        }
+
+        .title {
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 5px;
+            height: 40px; /* Ikki qatorli nomlar uchun joy */
+            overflow: hidden;
+        }
+
+        .price {
+            color: #2e7d32;
+            font-weight: bold;
+            font-size: 15px;
+            margin-bottom: 10px;
+        }
+
+        .buy-btn {
+            width: 100%;
+            background: #2e7d32;
+            color: white;
+            border: none;
+            padding: 8px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        /* Modal oyna (Buyurtma formasi) */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 400px;
+            position: relative;
+        }
+
+        .close-btn {
+            position: absolute;
+            right: 15px; top: 10px;
+            font-size: 20px;
+            cursor: pointer;
+        }
+
+        form label {
+            display: block;
+            margin-top: 10px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        form input {
+            width: 100%;
+            padding: 8px;
+            margin-top: 5px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        .payment-info {
+            background: #e8f5e9;
+            padding: 10px;
+            margin-top: 15px;
+            border-radius: 5px;
+            text-align: center;
+        }
+
+        .card-num {
+            font-size: 16px;
+            font-weight: bold;
+            color: #1b5e20;
+            display: block;
+            margin: 5px 0;
+        }
+
+        .note {
+            font-size: 11px;
+            color: #d32f2f;
+        }
+
+        .submit-btn {
+            width: 100%;
+            background: #2e7d32;
+            color: white;
+            border: none;
+            padding: 10px;
+            margin-top: 15px;
+            border-radius: 5px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>📚 NuraBooks</h1>
+        <p>Rasmiy Telegram Do'koni</p>
+    </header>
+
+    <!-- Kitoblar Katalogi (JavaScript orqali to'ldiriladi) -->
+    <main class="container" id="book-list"></main>
+
+    <!-- Modal Buyurtma Oynasi -->
+    <div id="checkout-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" onclick="closeModal()">&times;</span>
+            <h2>🛒 Buyurtma berish</h2>
+            <div id="order-summary"></div>
+            
+            <form id="order-form">
+                <label>🔢 Nechta xarid qilasiz?</label>
+                <input type="number" id="quantity" value="1" min="1" required onchange="updateTotal()">
+
+                <label>📱 Telefon raqamingiz:</label>
+                <input type="tel" id="phone" placeholder="+998 90 123 45 67" required>
+
+                <label>📍 Yetkazib berish manzili:</label>
+                <input type="text" id="address" placeholder="Shahar, tuman, ko'cha nomi..." required>
+
+                <div class="payment-info">
+                    <p>💳 <b>To'lov kartasi:</b></p>
+                    <code class="card-num">5614682008005029</code>
+                    <p class="note">⚠️ Yo'l puli kuryerga xaridor tomonidan to'lanadi.</p>
+                </div>
+
+                <button type="submit" class="submit-btn">Buyurtmani tasdiqlash</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- JavaScript kodi (Mantiq) -->
+    <script>
+        const tg = window.Telegram ? window.Telegram.WebApp : null;
+        if (tg) tg.expand();
+
+        // Kitoblar ma'lumotlar bazasi - rasmlar "images" papkasida bo'lishi kerak
+        const books = [
+            { id: 1, title: "Binafsha shulasi 1", price: 70000, img: "images/binafsha1.png" },
+            { id: 2, title: "Binafsha shulasi 2", price: 85000, img: "images/binafsha2.png" },
+            { id: 3, title: "Yusufning qizi", price: 70000, img: "images/yusuf.png" },
+            { id: 4, title: "Fotimaning bolasi", price: 55000, img: "images/fotima.jpg" }
+        ];
+
+        let selectedBook = null;
+
+        // Kitoblarni ekranga chiqarish
+        function renderBooks() {
+            const container = document.getElementById('book-list');
+            container.innerHTML = '';
+
+            books.forEach(book => {
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.innerHTML = `
+                    <img src="${book.img}" alt="${book.title}" onerror="this.src='https://via.placeholder.com/220x220?text=Rasm+Topilmadi'">
+                    <div class="card-body">
+                        <div class="title">${book.title}</div>
+                        <div class="price">${book.price.toLocaleString()} so'm</div>
+                        <button class="buy-btn" onclick="openCheckout(${book.id})">Sotib olish</button>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        // Modal oynasini ochish
+        function openCheckout(bookId) {
+            selectedBook = books.find(b => b.id === bookId);
+            document.getElementById('quantity').value = 1;
+            updateTotal();
+            document.getElementById('checkout-modal').style.display = 'flex';
+        }
+
+        // Summani qayta hisoblash
+        function updateTotal() {
+            if (!selectedBook) return;
+            const qty = parseInt(document.getElementById('quantity').value) || 1;
+            const total = selectedBook.price * qty;
+            document.getElementById('order-summary').innerHTML = `
+                <p style="margin-top:10px;"><b>Kitob:</b> ${selectedBook.title}</p>
+                <p><b>Jami narxi:</b> ${total.toLocaleString()} so'm</p>
+            `;
+        }
+
+        // Modal oynani yopish
+        function closeModal() {
+            document.getElementById('checkout-modal').style.display = 'none';
+        }
+
+        // Buyurtmani yuborish
+        document.getElementById('order-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const qty = parseInt(document.getElementById('quantity').value);
+            const phone = document.getElementById('phone').value;
+            const address = document.getElementById('address').value;
+
+            const orderData = {
+                book: selectedBook.title,
+                quantity: qty,
+                totalPrice: selectedBook.price * qty,
+                phone: phone,
+                address: address,
+                admin: "@farkxodov_712"
+            };
+
+            if (tg && tg.sendData) {
+                // Telegram Botiga ma'lumot jo'natish
+                tg.sendData(JSON.stringify(orderData));
+                tg.close();
+            } else {
+                alert(`Buyurtmangiz qabul qilindi!\n\nKitob: ${orderData.book} (${orderData.quantity} ta)\nSumma: ${orderData.totalPrice.toLocaleString()} so'm\n\nAdmin (@farkxodov_712) siz bilan bog'lanadi!`);
+                closeModal();
+            }
+        });
+
+        // Sahifa yuklanganda kitoblarni ko'rsatish
+        renderBooks();
+    </script>
+</body>
+</html>
